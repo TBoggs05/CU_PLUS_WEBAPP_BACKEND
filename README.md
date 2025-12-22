@@ -33,7 +33,8 @@ CU_PLUS_WEBAPP_BACKEND/
 ├── src/
 │   ├── index.js           # App entry point and route registration
 │   ├── prisma.js          # Prisma client singleton
-│   ├── auth.routes.js     # Example feature module
+│   ├── api/
+        ├── auth.routes.js     # Example api module
 │   └── *.routes.js        # Additional feature route modules
 ├── .env                   # Environment configuration (ignored in git)
 ├── package.json
@@ -142,7 +143,7 @@ The server defaults to `http://localhost:4000`. Adjust `PORT` in `.env` if you p
 
 ## Adding New APIs
 
-1. **Create a route file** in `src/`, e.g., `profile.routes.js`.
+1. **Create a route file** in `src/api/`, e.g., `profile.routes.js`.
 2. **Bootstrap the router**:
 
    ```js
