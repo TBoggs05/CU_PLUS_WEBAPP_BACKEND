@@ -17,6 +17,7 @@ model User {
   schoolId   String   @unique
   year       String
   role       String   @default("student")
+  isActive Boolean @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
