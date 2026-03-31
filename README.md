@@ -33,10 +33,14 @@ CU_PLUS_WEBAPP_BACKEND/
 ├── src/
 │   ├── index.js           # App entry point and route registration
 │   ├── prisma.js          # Prisma client singleton
-│   ├── api/
-        ├── auth.routes.js     # Example api module
-│   └── *.routes.js        # Additional feature route modules
-├── .env                   # Environment configuration (ignored in git)
+│   ├── middleware/
+│   │   └── auth.js        # requireAuth / requireAdmin (JWT + session validation)
+│   └── features/
+│       ├── auth/
+│       │   └── auth.routes.js        # login, logout, session endpoints
+│       └── students/
+│           └── admin.students.routes.js  # admin-only student CRUD
+├── .env
 ├── package.json
 └── README.md
 ```
@@ -55,6 +59,11 @@ Create a `.env` file inside `CU_PLUS_WEBAPP_BACKEND/`:
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/cu_plus?schema=public"
 PORT=4000
 ```
+
+### Additional Environment Variables (Auth)
+
+JWT_SECRET="your_jwt_secret_here"
+SESSION_EXPIRES_IN_DAYS=7
 
 Replace `USER`/`PASSWORD` with your local Postgres credentials (`whoami` on macOS, `postgres` or your custom user on Windows). The schema portion (`?schema=public`) should match `schema.prisma`.
 
@@ -132,6 +141,9 @@ npx prisma generate
 # Run database migrations (creates tables defined in schema.prisma)
 npx prisma migrate dev --name init
 
+# (Optional but recommended) Reset DB during development
+npx prisma migrate reset
+
 # Seed data or open Prisma Studio (optional)
 npx prisma studio
 
@@ -173,6 +185,43 @@ The server defaults to `http://localhost:4000`. Adjust `PORT` in `.env` if you p
 4. **Update Prisma schema** (`prisma/schema.prisma`) if the API needs new tables or relations. Run `npx prisma migrate dev` afterward.
 5. **Document the endpoint** (README or inline comments) and add tests or manual steps so others can validate it quickly.
 
+
+## Authentication & Authorization
+
+This backend uses **JWT + database-backed sessions**.
+
+### Flow
+1. User logs in via `/auth/login`
+2. Server:
+   - Validates credentials
+   - Generates JWT
+   - Stores a session in DB
+3. Client stores token (localStorage)
+4. Token is sent in requests:
+   ```
+   Authorization: Bearer <token>
+   ```
+
+### Middleware
+
+- `requireAuth` → verifies token + session
+- `requireAdmin` → ensures user role is `admin`
+
+Example:
+```js
+router.post("/", requireAuth, requireAdmin, async (req, res) => {
+  // protected route
+});
+```
+
+### Session Behavior
+
+- Each login creates a new session
+- Sessions expire based on `SESSION_EXPIRES_IN_DAYS`
+- Expired sessions are not automatically deleted (recommended: cron cleanup)
+
+---
+
 ## Sample Requests
 
 Use curl/Git Bash (macOS, Linux, Windows with Git Bash):
@@ -191,9 +240,39 @@ Invoke-RestMethod -Method POST -Uri http://localhost:4000/auth/register `
   -Body '{"email":"test@student.edu","password":"password123","name":"Test Student"}'
 ```
 
+### Admin Create Student (Protected)
+
+```bash
+curl -X POST http://localhost:4000/admin/students \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "firstName":"John",
+    "lastName":"Doe",
+    "email":"john@school.edu",
+    "password":"password123",
+    "schoolId":"2026001",
+    "year":"1"
+  }'
+```
+
+---
+
 ## Troubleshooting
 
 - **`psql`/`createdb` not found**: ensure the PostgreSQL `bin` directory is on your PATH (see platform-specific notes above).
 - **Prisma complains about migrations**: run `npx prisma migrate reset` (destroys local data) or delete the dev database and rerun `npx prisma migrate dev`.
 - **Port already in use**: set a new `PORT` in `.env` and restart `npm run dev`.
 - **Connection refused**: verify PostgreSQL is running (`brew services list` on macOS or `services.msc` on Windows) and that the credentials in `.env` match your local setup.
+
+- **Failed to fetch / localhost issues**:
+  - Ensure backend is running on port 4000
+  - Check frontend base URL is correct
+  - Avoid duplicate URLs like: http://localhost:4000http://localhost:4000/...
+
+- **Unauthorized (401)**:
+  - Make sure token is sent in Authorization header
+  - Verify session exists and is not expired
+
+- **Admin routes blocked**:
+  - Ensure user role is `admin`
