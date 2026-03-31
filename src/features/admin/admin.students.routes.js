@@ -45,6 +45,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 				schoolId,
 				year,
 				role: "student",
+				isActive: true,
 			},
 			select: {
 				id: true,
@@ -55,6 +56,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 				schoolId: true,
 				year: true,
 				role: true,
+				isActive: true,
 				createdAt: true,
 			},
 		});
@@ -75,7 +77,10 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
 	try {
 		const students = await prisma.user.findMany({
-			where: { role: "student" },
+			where: {
+				role: "student",
+				// isActive: true,
+			},
 			orderBy: { createdAt: "desc" },
 			select: {
 				id: true,
@@ -86,6 +91,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 				schoolId: true,
 				year: true,
 				role: true,
+				isActive: true,
 				createdAt: true,
 			},
 		});
@@ -100,6 +106,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // DELETE /admin/students/:id
+// soft delete -> deactivate account
 router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 	try {
 		const { id } = req.params;
@@ -109,9 +116,42 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 			return res.status(404).json({ message: "Student not found" });
 		}
 
-		await prisma.user.delete({ where: { id } });
+		if (existing.role !== "student") {
+			return res
+				.status(400)
+				.json({ message: "Only student accounts can be deactivated" });
+		}
 
-		return res.json({ message: "Student deleted successfully" });
+		await prisma.user.update({
+			where: { id },
+			data: { isActive: false },
+		});
+
+		return res.json({ message: "Student deactivated successfully" });
+	} catch (e) {
+		return res.status(500).json({
+			message: "Server error",
+			error: String(e),
+		});
+	}
+});
+
+// PATCH /admin/students/:id/reactivate
+router.patch("/:id/reactivate", requireAuth, requireAdmin, async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		const existing = await prisma.user.findUnique({ where: { id } });
+		if (!existing) {
+			return res.status(404).json({ message: "Student not found" });
+		}
+
+		await prisma.user.update({
+			where: { id },
+			data: { isActive: true },
+		});
+
+		return res.json({ message: "Student reactivated successfully" });
 	} catch (e) {
 		return res.status(500).json({
 			message: "Server error",
