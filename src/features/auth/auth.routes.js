@@ -48,6 +48,12 @@ router.post("/login", async (req, res) => {
 			},
 		});
 
+		if (!user.isActive) {
+			return res.status(403).json({
+				message: "This account has been deactivated",
+			});
+		}
+
 		const rawToken = crypto.randomBytes(32).toString("hex");
 		const tokenHash = hashToken(rawToken);
 
