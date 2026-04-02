@@ -21,12 +21,15 @@ app.get("/health", (req, res) => {
 
 // feature routes
 const authRoutes = require("./features/auth/auth.routes");
-const adminStudentsRoutes = require("./features/admin/admin.students.routes");
+const adminStudentsRoutes = require("./features/manageStudent/admin.students.routes");
 const adminAnnouncementsRoutes = require("./features/announcements/admin.announcements.routes");
+
+const studentAnnouncementsRoutes = require("./features/announcements/student.announcements.route");
 
 app.use("/auth", authRoutes);
 app.use("/admin/announcements", adminAnnouncementsRoutes);
 app.use("/admin/students", adminStudentsRoutes);
+app.use("/student/announcements", studentAnnouncementsRoutes);
 
 // start server
 const PORT = process.env.PORT || 4000;
