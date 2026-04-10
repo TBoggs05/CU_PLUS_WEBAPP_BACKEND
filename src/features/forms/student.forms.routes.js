@@ -397,6 +397,43 @@ router.post("/:id/submissions", requireAuth, async (req, res) => {
 	}
 });
 
+/**
+ * @swagger
+ * /student/forms/signature:
+ *   post:
+ *     summary: Upload a student's signature image to Cloudinary
+ *     tags: [Student Forms]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - dataUrl
+ *             properties:
+ *               dataUrl:
+ *                 type: string
+ *                 description: Base64-encoded image data URL
+ *                 example: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
+ *     responses:
+ *       200:
+ *         description: Signature uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 url:
+ *                   type: string
+ *                   example: https://res.cloudinary.com/your-cloud/image/upload/v123/signature.png
+ *       400:
+ *         description: Invalid image or missing data
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Upload failed
+ */
 router.post("/signature", requireAuth, async (req, res) => {
 	try {
 		const { dataUrl } = req.body;
