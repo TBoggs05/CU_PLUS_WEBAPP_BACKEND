@@ -13,8 +13,10 @@ model User {
   password      String
   firstName     String
   lastName      String
-  name          String?
-  schoolId      String         @unique
+  name            String?
+  profileImageUrl String?
+  profileImagePublicId String?
+  schoolId        String         @unique
   year          String
   role          String         @default("student")
   isActive      Boolean @default(true)

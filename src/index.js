@@ -14,7 +14,8 @@ app.use(
 	}),
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // health check (keep this)
@@ -50,6 +51,10 @@ app.use("/course-content", courseFoldersRoutes);
 const studentNotificationsRoutes = require("./features/notifications/student.notifications.routes");
 
 app.use("/student/notifications", studentNotificationsRoutes);
+
+const profileRoutes = require("./features/settings/profile.routes");
+
+app.use("/", profileRoutes);
 
 // start server
 const PORT = process.env.PORT || 4000;
