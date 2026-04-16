@@ -47,18 +47,34 @@ router.get("/", requireAuth, async (req, res) => {
 				isActive: true,
 				// OR: [{ year: null }, { year: user.year }],
 			},
-			orderBy: { createdAt: "desc" },
+			orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
 			include: {
 				fields: {
 					orderBy: { sortOrder: "asc" },
 				},
+				submissions: {
+					where: {
+						studentId: user.id,
+					},
+					select: {
+						id: true,
+						status: true,
+						submittedAt: true,
+					},
+					take: 1,
+				},
 			},
 		});
 
-		const formsWithAvailability = forms.map((form) => ({
-			...form,
-			isAvailableToStudent: !form.year || form.year === user.year,
-		}));
+		const formsWithAvailability = forms.map((form) => {
+			const submission = form.submissions?.[0] ?? null;
+			return {
+				...form,
+				submission,
+				isSubmitted: submission?.status === "submitted",
+				isAvailableToStudent: !form.year || form.year === user.year,
+			};
+		});
 
 		return res.json({ forms: formsWithAvailability });
 	} catch (e) {
@@ -300,27 +316,29 @@ router.post("/:id/submissions", requireAuth, async (req, res) => {
 			}
 		}
 
-		for (const field of form.fields) {
-			if (!field.required) continue;
+		if (submitNow) {
+			for (const field of form.fields) {
+				if (!field.required) continue;
 
-			const answer = answers.find((a) => a.formFieldId === field.id);
+				const answer = answers.find((a) => a.formFieldId === field.id);
 
-			if (!answer) {
-				return res.status(400).json({
-					message: `Required field missing: ${field.label}`,
-				});
-			}
+				if (!answer) {
+					return res.status(400).json({
+						message: `Required field missing: ${field.label}`,
+					});
+				}
 
-			const hasValue =
-				answer.valueText != null ||
-				answer.valueBoolean != null ||
-				answer.valueDate != null ||
-				answer.valueSignatureUrl != null;
+				const hasValue =
+					answer.valueText != null ||
+					answer.valueBoolean != null ||
+					answer.valueDate != null ||
+					answer.valueSignatureUrl != null;
 
-			if (!hasValue) {
-				return res.status(400).json({
-					message: `Required field missing value: ${field.label}`,
-				});
+				if (!hasValue) {
+					return res.status(400).json({
+						message: `Required field missing value: ${field.label}`,
+					});
+				}
 			}
 		}
 
@@ -416,6 +434,10 @@ router.post("/:id/submissions", requireAuth, async (req, res) => {
  *                 type: string
  *                 description: Base64-encoded image data URL
  *                 example: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
+ *               oldUrl:
+ *                 type: string
+ *                 description: Existing Cloudinary URL to delete after successful replacement
+ *                 example: https://res.cloudinary.com/your-cloud/image/upload/v123/signature.png
  *     responses:
  *       200:
  *         description: Signature uploaded successfully
@@ -436,7 +458,7 @@ router.post("/:id/submissions", requireAuth, async (req, res) => {
  */
 router.post("/signature", requireAuth, async (req, res) => {
 	try {
-		const { dataUrl } = req.body;
+		const { dataUrl, oldUrl } = req.body;
 
 		if (!dataUrl || typeof dataUrl !== "string") {
 			return res.status(400).json({ message: "No image provided" });
@@ -451,6 +473,22 @@ router.post("/signature", requireAuth, async (req, res) => {
 			resource_type: "image",
 			format: "png",
 		});
+
+		// Delete old signature if provided
+		if (oldUrl && typeof oldUrl === "string") {
+			try {
+				// Extract public_id from Cloudinary URL
+				const parts = oldUrl.split("/");
+				const fileWithExt = parts[parts.length - 1];
+				const publicId = `cuplus/signatures/${fileWithExt.split(".")[0]}`;
+
+				await cloudinary.uploader.destroy(publicId, {
+					resource_type: "image",
+				});
+			} catch (err) {
+				console.warn("Failed to delete old signature:", err);
+			}
+		}
 
 		return res.json({
 			url: result.secure_url,

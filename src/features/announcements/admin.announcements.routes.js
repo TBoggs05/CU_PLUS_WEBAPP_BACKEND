@@ -2,6 +2,10 @@ const express = require("express");
 const prisma = require("../../prisma");
 const { requireAuth, requireAdmin } = require("../../middleware/auth");
 
+const {
+	notifyStudentsForAnnouncement,
+} = require("../notifications/notification.service");
+
 const router = express.Router();
 
 /**
@@ -22,6 +26,9 @@ const router = express.Router();
  *               message:
  *                 type: string
  *                 example: Classes are canceled tomorrow
+ *               saveAsDraft:
+ *                 type: boolean
+ *                 example: false
  *               everyone:
  *                 type: boolean
  *                 example: true
@@ -58,9 +65,12 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 			secondYear,
 			thirdYear,
 			fourthYear,
+			saveAsDraft,
 		} = req.body;
 
-		if (!message || !message.trim()) {
+		const isDraft = Boolean(saveAsDraft);
+
+		if (!isDraft && (!message || !message.trim())) {
 			return res.status(400).json({
 				message: "message is required",
 			});
@@ -69,7 +79,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 		const hasAudience =
 			everyone || firstYear || secondYear || thirdYear || fourthYear;
 
-		if (!hasAudience) {
+		if (!isDraft && !hasAudience) {
 			return res.status(400).json({
 				message: "At least one audience must be selected",
 			});
@@ -77,7 +87,8 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 
 		const createdAnnouncement = await prisma.announcement.create({
 			data: {
-				message: message.trim(),
+				message: message?.trim() || "",
+				status: isDraft ? "draft" : "published",
 				everyone: Boolean(everyone),
 				firstYear: Boolean(firstYear),
 				secondYear: Boolean(secondYear),
@@ -99,8 +110,14 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 			},
 		});
 
+		if (!isDraft) {
+			await notifyStudentsForAnnouncement(createdAnnouncement);
+		}
+
 		return res.status(201).json({
-			message: "Announcement created successfully",
+			message: isDraft
+				? "Announcement draft saved successfully"
+				: "Announcement created successfully",
 			announcement: createdAnnouncement,
 		});
 	} catch (e) {
@@ -115,7 +132,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
  * @swagger
  * /admin/announcements:
  *   get:
- *     summary: Get all announcements
+ *     summary: Get all announcements, including drafts
  *     tags: [Admin Announcements]
  *     responses:
  *       200:
@@ -233,6 +250,9 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
  *               message:
  *                 type: string
  *                 example: Updated announcement message
+ *               saveAsDraft:
+ *                 type: boolean
+ *                 example: false
  *               everyone:
  *                 type: boolean
  *               firstYear:
@@ -267,6 +287,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res) => {
 			secondYear,
 			thirdYear,
 			fourthYear,
+			saveAsDraft,
 		} = req.body;
 
 		const existing = await prisma.announcement.findUnique({
@@ -279,7 +300,9 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res) => {
 			});
 		}
 
-		if (!message || !message.trim()) {
+		const isDraft = Boolean(saveAsDraft);
+
+		if (!isDraft && (!message || !message.trim())) {
 			return res.status(400).json({
 				message: "message is required",
 			});
@@ -288,7 +311,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res) => {
 		const hasAudience =
 			everyone || firstYear || secondYear || thirdYear || fourthYear;
 
-		if (!hasAudience) {
+		if (!isDraft && !hasAudience) {
 			return res.status(400).json({
 				message: "At least one audience must be selected",
 			});
@@ -297,7 +320,8 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res) => {
 		const updatedAnnouncement = await prisma.announcement.update({
 			where: { id },
 			data: {
-				message: message.trim(),
+				message: message?.trim() || "",
+				status: isDraft ? "draft" : "published",
 				everyone: Boolean(everyone),
 				firstYear: Boolean(firstYear),
 				secondYear: Boolean(secondYear),
@@ -319,7 +343,9 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res) => {
 		});
 
 		return res.json({
-			message: "Announcement updated successfully",
+			message: isDraft
+				? "Announcement draft saved successfully"
+				: "Announcement updated successfully",
 			announcement: updatedAnnouncement,
 		});
 	} catch (e) {

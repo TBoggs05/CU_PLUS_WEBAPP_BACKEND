@@ -14,7 +14,8 @@ app.use(
 	}),
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // health check (keep this)
@@ -32,15 +33,28 @@ const studentAnnouncementsRoutes = require("./features/announcements/student.ann
 const adminFormsRoutes = require("./features/forms/admin.forms.routes");
 const studentFormsRoutes = require("./features/forms/student.forms.routes");
 
+const courseFoldersRoutes = require("./features/courseContent/admin.courseContent.routes");
+
 app.use("/auth", authRoutes);
+
 app.use("/admin/announcements", adminAnnouncementsRoutes);
 app.use("/admin/students", adminStudentsRoutes);
-app.use("/student/announcements", studentAnnouncementsRoutes);
-
 app.use("/admin/forms", adminFormsRoutes);
+
+app.use("/student/announcements", studentAnnouncementsRoutes);
 app.use("/student/forms", studentFormsRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.use("/course-content", courseFoldersRoutes);
+
+const studentNotificationsRoutes = require("./features/notifications/student.notifications.routes");
+
+app.use("/student/notifications", studentNotificationsRoutes);
+
+const profileRoutes = require("./features/settings/profile.routes");
+
+app.use("/", profileRoutes);
 
 // start server
 const PORT = process.env.PORT || 4000;
