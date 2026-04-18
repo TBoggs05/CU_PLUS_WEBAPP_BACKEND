@@ -372,4 +372,224 @@ router.patch("/:id/reactivate", requireAuth, requireAdmin, async (req, res) => {
 	}
 });
 
+/**
+ * @swagger
+ * /admin/students/{id}:
+ *   get:
+ *     summary: Get a student by ID
+ *     tags: [Admin Students]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Student user ID
+ *     responses:
+ *       200:
+ *         description: Student returned successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Student not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/:id", requireAuth, requireAdmin, async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		const student = await prisma.user.findFirst({
+			where: {
+				id,
+				role: "student",
+			},
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				name: true,
+				email: true,
+				schoolId: true,
+				year: true,
+				role: true,
+				isActive: true,
+				createdAt: true,
+				profileImageUrl: true,
+			},
+		});
+
+		if (!student) {
+			return res.status(404).json({
+				message: "Student not found",
+			});
+		}
+
+		return res.json({ student });
+	} catch (e) {
+		return res.status(500).json({
+			message: "Server error",
+			error: String(e),
+		});
+	}
+});
+
+/**
+ * @swagger
+ * /admin/students/{id}:
+ *   patch:
+ *     summary: Update a student
+ *     tags: [Admin Students]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Student user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 example: Vorahpong
+ *               lastName:
+ *                 type: string
+ *                 example: Mean
+ *               name:
+ *                 type: string
+ *                 nullable: true
+ *                 example: Pong
+ *               email:
+ *                 type: string
+ *                 example: student@cameron.edu
+ *               schoolId:
+ *                 type: string
+ *                 example: 900123456
+ *     responses:
+ *       200:
+ *         description: Student updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Student not found
+ *       409:
+ *         description: Email or school ID already exists
+ *       500:
+ *         description: Server error
+ */
+router.patch("/:id", requireAuth, requireAdmin, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { firstName, lastName, name, email, schoolId } = req.body;
+
+		const existing = await prisma.user.findFirst({
+			where: {
+				id,
+				role: "student",
+			},
+		});
+
+		if (!existing) {
+			return res.status(404).json({
+				message: "Student not found",
+			});
+		}
+
+		if (firstName != null && !firstName.toString().trim()) {
+			return res.status(400).json({ message: "First name cannot be empty" });
+		}
+
+		if (lastName != null && !lastName.toString().trim()) {
+			return res.status(400).json({ message: "Last name cannot be empty" });
+		}
+
+		if (email != null && !email.toString().trim()) {
+			return res.status(400).json({ message: "Email cannot be empty" });
+		}
+
+		if (schoolId != null && !schoolId.toString().trim()) {
+			return res.status(400).json({ message: "School ID cannot be empty" });
+		}
+
+		const nextEmail = email != null ? email.toString().trim() : existing.email;
+		const nextSchoolId =
+			schoolId != null ? schoolId.toString().trim() : existing.schoolId;
+
+		const emailTaken = await prisma.user.findFirst({
+			where: {
+				email: nextEmail,
+				NOT: { id },
+			},
+			select: { id: true },
+		});
+
+		if (emailTaken) {
+			return res.status(409).json({
+				message: "Email already exists",
+			});
+		}
+
+		const schoolIdTaken = await prisma.user.findFirst({
+			where: {
+				schoolId: nextSchoolId,
+				NOT: { id },
+			},
+			select: { id: true },
+		});
+
+		if (schoolIdTaken) {
+			return res.status(409).json({
+				message: "School ID already exists",
+			});
+		}
+
+		const updatedStudent = await prisma.user.update({
+			where: { id },
+			data: {
+				firstName:
+					firstName != null ? firstName.toString().trim() : existing.firstName,
+				lastName:
+					lastName != null ? lastName.toString().trim() : existing.lastName,
+				name: name != null ? name.toString().trim() || null : existing.name,
+				email: nextEmail,
+				schoolId: nextSchoolId,
+			},
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				name: true,
+				email: true,
+				schoolId: true,
+				year: true,
+				role: true,
+				isActive: true,
+				createdAt: true,
+				profileImageUrl: true,
+			},
+		});
+
+		return res.json({
+			message: "Student updated successfully",
+			student: updatedStudent,
+		});
+	} catch (e) {
+		return res.status(500).json({
+			message: "Server error",
+			error: String(e),
+		});
+	}
+});
+
 module.exports = router;
