@@ -25,6 +25,7 @@ model User {
 
   announcements Announcement[] @relation("AnnouncementAuthor")
   sessions Session[]
+  emailTwoFactorCodes EmailTwoFactorCode[]
 
   createdForms           FormTemplate[]   @relation("CreatedForms")
   createdFolders CourseFolder[]
@@ -66,6 +67,22 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model EmailTwoFactorCode {
+  id         String   @id @default(uuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  sentAt     DateTime @default(now())
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model FormTemplate {
