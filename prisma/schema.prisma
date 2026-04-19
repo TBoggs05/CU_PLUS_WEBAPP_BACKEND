@@ -13,8 +13,10 @@ model User {
   password      String
   firstName     String
   lastName      String
-  name          String?
-  schoolId      String         @unique
+  name            String?
+  profileImageUrl String?
+  profileImagePublicId String?
+  schoolId        String         @unique
   year          String
   role          String         @default("student")
   isActive      Boolean @default(true)
@@ -25,24 +27,32 @@ model User {
   sessions Session[]
 
   createdForms           FormTemplate[]   @relation("CreatedForms")
+  createdFolders CourseFolder[]
   studentSubmissions     FormSubmission[] @relation("StudentFormSubmissions")
   reviewedSubmissions    FormSubmission[] @relation("ReviewedFormSubmissions")
+  notifications          Notification[]
 }
 
 model Announcement {
-  id          String   @id @default(uuid())
+  id          String             @id @default(uuid())
   message     String
-  everyone    Boolean  @default(false)
-  firstYear   Boolean  @default(false)
-  secondYear  Boolean  @default(false)
-  thirdYear   Boolean  @default(false)
-  fourthYear  Boolean  @default(false)
+  status      AnnouncementStatus @default(published)
+  everyone    Boolean            @default(false)
+  firstYear   Boolean            @default(false)
+  secondYear  Boolean            @default(false)
+  thirdYear   Boolean            @default(false)
+  fourthYear  Boolean            @default(false)
 
   authorId    String
-  author      User     @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  author      User               @relation("AnnouncementAuthor", fields: [authorId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+enum AnnouncementStatus {
+  draft
+  published
 }
 
 model Session {
@@ -59,20 +69,25 @@ model Session {
 }
 
 model FormTemplate {
-  id          String      @id @default(uuid())
-  title       String
-  description String?
-  year        String?     // optional targeting like "1", "2", etc.
-  isActive    Boolean     @default(true)
-  createdById String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  dueDate     DateTime?
+  id            String           @id @default(uuid())
+  title         String
+  description   String?
+  year          String?          // optional targeting like "1", "2", etc.
+  isActive      Boolean          @default(true)
+  createdById   String
+  folderId      String?
+  sortOrder     Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  dueDate       DateTime?
   instructions  String?
 
-  createdBy   User        @relation("CreatedForms", fields: [createdById], references: [id])
-  fields      FormField[]
-  submissions FormSubmission[]
+  createdBy     User             @relation("CreatedForms", fields: [createdById], references: [id])
+  folder        CourseFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  fields        FormField[]
+  submissions   FormSubmission[]
+
+  @@index([folderId])
 }
 
 model FormField {
@@ -146,4 +161,51 @@ model FormAnswer {
   formField        FormField      @relation(fields: [formFieldId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, formFieldId])
+}
+
+model CourseFolder {
+  id          String         @id @default(uuid())
+  title       String
+  parentId    String?
+  createdById String?
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  parent      CourseFolder?  @relation("FolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children    CourseFolder[] @relation("FolderChildren")
+  forms       FormTemplate[]
+
+  createdBy   User?          @relation(fields: [createdById], references: [id])
+
+  @@index([parentId])
+}
+
+enum NotificationType {
+  announcement
+  form
+}
+
+enum NotificationTargetType {
+  announcement
+  form
+}
+
+model Notification {
+  id          String                 @id @default(uuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  targetType  NotificationTargetType
+  targetId    String
+  isRead      Boolean                @default(false)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([targetType, targetId])
 }
