@@ -435,6 +435,7 @@ router.post("/resend-2fa", async (req, res) => {
 
 		return res.json({ message: "Verification code resent" });
 	} catch (e) {
+		console.error("LOGIN ERROR:", e); // trying to catch error. 
 		return res.status(500).json({ message: "Server error", error: String(e) });
 	}
 });
