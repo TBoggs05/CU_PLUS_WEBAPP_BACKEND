@@ -32,6 +32,11 @@ model User {
   studentSubmissions     FormSubmission[] @relation("StudentFormSubmissions")
   reviewedSubmissions    FormSubmission[] @relation("ReviewedFormSubmissions")
   notifications          Notification[]
+
+  @@index([firstName])
+  @@index([lastName])
+  @@index([schoolId])
+  @@index([email])
 }
 
 model Announcement {
