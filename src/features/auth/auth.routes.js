@@ -8,12 +8,21 @@ const router = express.Router();
 
 const nodemailer = require("nodemailer");
 
-function hashCode(code) {
-	return crypto.createHash("sha256").update(code).digest("hex");
+function hashToken(token) {
+	return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 function generateSixDigitCode() {
 	return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function createSessionCookie(res, token) {
+	res.cookie("session_id", token, {
+		httpOnly: true,
+		secure: false,
+		sameSite: "lax",
+		maxAge: 1000 * 60 * 60 * 24 * 7,
+	});
 }
 
 async function sendTwoFactorEmail(toEmail, code) {
@@ -34,6 +43,8 @@ async function sendTwoFactorEmail(toEmail, code) {
 		text: `Your verification code is ${code}. It expires in 10 minutes.`,
 	});
 }
+
+
 
 async function createLoginSession(res, userId) {
 	const rawToken = crypto.randomBytes(32).toString("hex");
@@ -310,10 +321,6 @@ router.post("/verify-2fa", async (req, res) => {
 		const latestCode = await prisma.emailTwoFactorCode.findFirst({
 			where: {
 				userId: user.id,
-				usedAt: null,
-			},
-			orderBy: {
-				createdAt: "desc",
 			},
 		});
 
@@ -329,7 +336,7 @@ router.post("/verify-2fa", async (req, res) => {
 			return res.status(429).json({ message: "Too many attempts" });
 		}
 
-		const incomingHash = hashCode(code);
+		const incomingHash = hashToken(code);
 
 		if (incomingHash !== latestCode.codeHash) {
 			await prisma.emailTwoFactorCode.update({
@@ -342,12 +349,9 @@ router.post("/verify-2fa", async (req, res) => {
 			return res.status(401).json({ message: "Invalid verification code" });
 		}
 
-		await prisma.emailTwoFactorCode.update({
-			where: { id: latestCode.id },
-			data: {
-				usedAt: new Date(),
-			},
-		});
+		await prisma.emailTwoFactorCode.delete({
+	where: { id: latestCode.id },
+});
 
 		await prisma.session.deleteMany({
 			where: {
@@ -415,12 +419,11 @@ router.post("/resend-2fa", async (req, res) => {
 		await prisma.emailTwoFactorCode.deleteMany({
 			where: {
 				userId: user.id,
-				usedAt: null,
 			},
 		});
 
 		const rawCode = generateSixDigitCode();
-		const codeHash = hashCode(rawCode);
+		const codeHash = hashToken(rawCode);
 		const expiresAt = new Date(Date.now() + 1000 * 60 * 10);
 
 		await prisma.emailTwoFactorCode.create({
