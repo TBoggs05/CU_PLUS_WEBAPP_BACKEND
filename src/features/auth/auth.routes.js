@@ -6,17 +6,32 @@ const { requireAuth } = require("../../middleware/auth");
 
 const router = express.Router();
 
+// hashing algorithm set here
 function hashToken(token) {
 	return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function createSessionCookie(res, token) {
-	res.cookie("session_id", token, {
+// this is for AWS server HTTPS to work, rules are set differently on local host
+function getSessionCookieOptions() {
+	const frontendUrl = (process.env.FRONTEND_URL || "").trim();
+	const isHttpsFrontend = frontendUrl.startsWith("https://");
+	const isProd =
+		process.env.NODE_ENV === "production" ||
+		process.env.APP_ENV === "production" ||
+		isHttpsFrontend;
+
+	return {
 		httpOnly: true,
-		secure: false, // true in production with HTTPS
-		sameSite: "lax",
-		maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-	});
+		secure: isProd,
+		sameSite: isProd ? "none" : "lax",
+		path: "/",
+		maxAge: 1000 * 60 * 60 * 24 * 7,
+	};
+}
+
+// 
+function createSessionCookie(res, token) {
+	res.cookie("session_id", token, getSessionCookieOptions());
 }
 
 /**
@@ -251,10 +266,12 @@ router.post("/logout", requireAuth, async (req, res) => {
 			data: { revokedAt: new Date() },
 		});
 
+		const cookieOptions = getSessionCookieOptions();
 		res.clearCookie("session_id", {
-			httpOnly: true,
-			secure: false,
-			sameSite: "lax",
+			httpOnly: cookieOptions.httpOnly,
+			secure: cookieOptions.secure,
+			sameSite: cookieOptions.sameSite,
+			path: cookieOptions.path,
 		});
 
 		return res.json({ message: "Logged out" });
