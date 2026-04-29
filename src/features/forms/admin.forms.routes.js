@@ -1130,7 +1130,7 @@ function extractCloudinaryPublicId(url) {
  * @swagger
  * /admin/forms/{id}:
  *   delete:
- *     summary: Delete a form template
+ *     summary: Delete a form template only when it has no submissions
  *     tags: [Admin Forms]
  *     parameters:
  *       - in: path
@@ -1172,27 +1172,13 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 			});
 		}
 
-		const signatureUrls = form.submissions.flatMap((submission) =>
-			submission.answers
-				.map((answer) => answer.valueSignatureUrl)
-				.filter((url) => typeof url === "string" && url.trim().length > 0),
-		);
-
-		for (const url of signatureUrls) {
-			const publicId = extractCloudinaryPublicId(url);
-			if (!publicId) continue;
-
-			try {
-				await cloudinary.uploader.destroy(publicId, {
-					resource_type: "image",
-				});
-			} catch (cloudinaryError) {
-				console.error(
-					`Failed to delete Cloudinary asset for form ${id}:`,
-					cloudinaryError,
-				);
-			}
+		if (form.submissions.length > 0) {
+			return res.status(400).json({
+				message:
+					"Cannot delete a form that already has submissions. Delete or archive the submissions first.",
+			});
 		}
+
 
 		await prisma.formTemplate.delete({
 			where: { id },
